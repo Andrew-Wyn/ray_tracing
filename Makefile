@@ -1,5 +1,5 @@
 
-.PHONY: compile run
+.PHONY: all
 
 all: warn
 
