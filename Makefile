@@ -1,16 +1,30 @@
+GRADLE=./core/appw
 
-.PHONY: all
+all: requirements destroy compose
 
-all: warn
+requirements:
+	@echo '============ Checking if docker binaries exist...'
+	@docker --version
+	@docker-compose --version
+	@echo '============ OK!'
 
+compose:
+	@echo '============ Creating docker environment...'
+	docker-compose build --pull
+	docker-compose up -d
+	@echo '============ Docker environment for your project successfully created.'
 
-compile:
-	@echo "========== Compiling source ..."
-	g++ main.cc -o raytracing.out
-	@echo "========== DONE!"
+destroy:
+	@echo "============ Cleaning up docker environment..."
+	docker-compose down -v
+	docker-compose kill
+	docker-compose rm -vf
 
-run:
-	./raytracing.out
+start:
+	docker-compose start
 
-warn:
-	@echo "========== Warning ...\nDO: make compile, make run"
+stop:
+	docker-compose stop
+
+app:
+	@echo "implement the starter for your application structure\n-> put the application in the source directory"
