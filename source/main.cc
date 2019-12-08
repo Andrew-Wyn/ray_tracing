@@ -1,49 +1,50 @@
 #include <iostream>
 #include <fstream>
-#include "vec3.h"
-#include "ray.h"
-
+#include "hittable_list.h"
+#include "sphere.h"
+#include "random.h"
+#include "camera.h"
 
 using namespace std;
 
-// equazione di secondo grado
-float hit_sphere(const vec3 &center, float radius, const ray &r){
-    vec3 oc = r.origin() - center;
-    float a = dot(r.direction(), r.direction());
-    float b = 2.0 * dot(oc, r.direction());
-    float c = dot(oc, oc) - radius*radius;
-
-    float discriminant = b*b - 4*a*c;
-
-    if (discriminant < 0)
-        return -1;
-    else 
-        return (-b -sqrt(discriminant)) / 2*a;
-}
-
 // -- to study --
-vec3 color(const ray &r){
-    float t = hit_sphere(vec3(0,0,-1), 0.5, r);
 
-    if(t > 0.0){
-        vec3 N = unit_vector(r.point_at_parameter(t)- vec3(0,0,-1));
-        return 0.5*(vec3(N.x() + 1, N.y() + 1, N.z() + 1));
+/*
+
+    polimosfirmo degli oggetti simile a quello in java, hittable è superclasse di sphere
+
+*/
+
+vec3 color(const ray& r, hittable *world, int depth) {
+    hit_record rec;
+    if (world->hit(r, 0.001, MAXFLOAT, rec)) {
+        ray scattered;
+        vec3 attenuation;
+        if (depth < 50 && rec.mat_ptr->scatter(r, rec, attenuation, scattered)) {
+            return attenuation*color(scattered, world, depth+1);
+        }
+        else {
+            return vec3(0,0,0);
+        }
     }
-
-    vec3 unit_direction = unit_vector(r.direction());
-    t = 0.5*(unit_direction.y() + 1.0);
-    return (1.0-t)*vec3(1.0, 1.0, 1.0) + t*vec3(0.5, 0.7, 1.0);
+    else {
+        vec3 unit_direction = unit_vector(r.direction());
+        float t = 0.5*(unit_direction.y() + 1.0);
+        return (1.0-t)*vec3(1.0, 1.0, 1.0) + t*vec3(0.5, 0.7, 1.0);
+    }
 }
 
 int main() {
-    int nx = 200;
-    int ny = 100;
+    int nx = 500;
+    int ny = 250;
+    int ns = 100;
+
 
     /*
         ---- PPM HEADER ----
 
         the p3 meand color are in ascii, then nx columns and ny rows, then
-        25 for max color. 
+        255 for max color. 
     */
 
     string ppm_header = "P3\n" + to_string(nx) + " " + to_string(ny) + "\n255\n";
@@ -63,20 +64,38 @@ int main() {
     vec3 vertical(0.0, 2.0, 0.0);
     vec3 origin(0.0, 0.0, 0.0);
 
+    hittable *list[4];
+    list[0] = new sphere(vec3(0,0,-1), 0.5, new lambertian(vec3(0.8, 0.3, 0.3)));
+    list[1] = new sphere(vec3(0,-100.5,-1), 100, new lambertian(vec3(0.8, 0.8, 0.0)));
+    list[2] = new sphere(vec3(1,0,-1), 0.5, new metal(vec3(0.8, 0.6, 0.2), 0.2));
+    list[3] = new sphere(vec3(-1,0,-1), 0.5, new metal(vec3(0-8, 0.8, 0.8), 0.4));
+    hittable *world = new hittable_list(list,4);
+    
+    camera cam;
+
     for (int j=ny-1; j >=0; j--) {
         for (int i=0; i<nx; i++) {
-            float u = float(i) / float(nx);
-            float v = float(j) / float(ny);
+            vec3 col(0, 0, 0);
+            // antialiasing
+            for (int s = 0; s < ns; s++) {
+                float u = float(i + random_double()) / float(nx);
+                float v = float(j + random_double()) / float(ny);
+                ray r = cam.get_ray(u, v);
+                col += color(r, world, 0);
+            }
+            col /= float(ns);
+            // ------- end antialiasing -------
 
-            ray r(origin, lower_left_corner + u*horizontal + v*vertical);
+            // gamma correction, gamma = 2
+            col = vec3(sqrt(col[0]), sqrt(col[1]), sqrt(col[2]));
 
-            vec3 col = color(r);
 
-            int ir = int(255.9*col.e[0]);
-            int ig = int(255.9*col.e[1]);
-            int ib = int(255.9*col.e[2]);
+            int ir = int(255.99*col[0]);
+            int ig = int(255.99*col[1]);
+            int ib = int(255.99*col[2]);
 
             string ppm_px = to_string(ir) + " " + to_string(ig) + " " + to_string(ib) + "\n";
+
             cout << ppm_px;
             output_file << ppm_px;
         }
